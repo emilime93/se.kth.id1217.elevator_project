@@ -8,8 +8,13 @@ import java.util.Queue;
 
 public class ElevatorState implements Runnable {
 
+    /* The floor variable will repserent level 4 as 400 etc, due to double vs integer rounding comparison problems */
+    private int floor;
+    /* 1 = UP | -1 = DOWN */
     private int direction;
-    private double floor;
+    /* Indicates which queue we are working with at the moment */
+    private int workingQueue = 1;
+    /* My ID, ranges from 1 to N */
     private int id;
 
     private LinkedList<Integer> upQueue;
@@ -18,7 +23,7 @@ public class ElevatorState implements Runnable {
     private ElevatorController controller;
     private boolean idle = true;
 
-    ElevatorState(int direction, double floor, int id, ElevatorController controller) {
+    ElevatorState(int direction, int floor, int id, ElevatorController controller) {
         this.direction = direction;
         this.floor = floor;
         this.id = id;
@@ -52,6 +57,11 @@ public class ElevatorState implements Runnable {
         upQueue.add(level);
     }
 
+    /**
+     * Used for when someone outside the elevator wants to travel in a direction
+     * @param destination The floor where the button was pressed
+     * @param direction The direction they want to travel in
+     */
     void addRequest(int destination, int direction) {
         if (direction == Elevators.UP)
             addUpRequest(destination);
@@ -64,6 +74,7 @@ public class ElevatorState implements Runnable {
      * @param destination The destination floor.
      */
     void addRequest(int destination) {
+        System.out.println("Adding request, destination = " + destination);
         if (this.direction == Elevators.UP) {
             if ((destination - floor) > 0) {
                 // Your destination is on your way up...
@@ -84,6 +95,7 @@ public class ElevatorState implements Runnable {
     }
 
     public double calculateDistance(int targetFloor, int direction) {
+        targetFloor *= 100;
         // TODO take direction into consideration
         double sum = 0.0;
         
@@ -155,6 +167,9 @@ public class ElevatorState implements Runnable {
     }
 
     void stop() {
+        System.out.println(this);
+        printMyQueues();
+        System.out.println();
         controller.sendCommand("m " + id + " 0");
     }
 
@@ -189,13 +204,13 @@ public class ElevatorState implements Runnable {
         return floor;
     }
 
-    void setFloor(double floor) {
+    void setFloor(int floor) {
         this.floor = floor;
     }
 
     @Override
     public String toString() {
-        return String.format("Elevator #%d, at floor %f, moving %d", id, floor, direction);
+        return String.format("Elevator #%d, at floor %d, moving %d, workingQueue: %d", id, floor, direction, workingQueue);
     }
 
     public void printMyQueues() {
@@ -212,8 +227,10 @@ public class ElevatorState implements Runnable {
     }
 
     private boolean reachedFloor(int target) {
+//        System.out.printf("target: %d floor: %d\n", target, floor);
+        if (target == -1) return false;
         // Test value, may be subject to change TODO!!!
-        if (Math.abs(floor - target) < 0.04) {
+        if (Math.abs(floor - target) <= 6) {
             return true;
         }
         return false;
@@ -221,71 +238,75 @@ public class ElevatorState implements Runnable {
 
     @Override
     public void run() {
+        // These initialize to different numbers to make if statement work and not spam the elevator with the same cmd
         int target = -1;
+        int prevTarget = -2;
         while (true) {
             try {
                 Thread.sleep(10);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            // Flip floor direction in case of top and bottom reached.
-            if (reachedFloor(Elevators.topFloor)) {
-                direction = Elevators.DOWN;
-            }
-            if (reachedFloor(0)) {
-                direction = Elevators.UP;
-            }
 
-            if (direction == Elevators.UP) {
-                // Check to see if it reached it's floor
-                if (reachedFloor(target)) {
-                    stop();
-                    toggleDoors();
-                    upQueue.pollFirst();
-                    target = -1;
-                }
-
-                // Check to see if it's currently moving towards its target. If not, get the next command
-                if (upQueue.peek() != null) {
-                    idle = false;
-                    target = upQueue.peek();
-                    direction = Elevators.UP;
-                    controller.sendCommand("m " + id + " " + direction);
-                } else if (downQueue.peek() != null) {
-                    idle = false;
-                    target = downQueue.peek();
-                    direction = Elevators.DOWN;
-                    controller.sendCommand("m " + id + " " + direction);
-                } else {
-                    idle = true;
-                }
-
-            } else { // If it's going down
-                // Check to see if it reached it's floor
-                if (reachedFloor(target)) {
-                    stop();
-                    toggleDoors();
-                    downQueue.pollFirst();
-                    target = -1;
-                }
-
-                // Check to see if it's currently moving towards its target. If not, get the next command
-                if (downQueue.peek() != null) {
-                    idle = false;
-                    target = downQueue.peek();
-                    direction = Elevators.DOWN;
-                    controller.sendCommand("m " + id + " " + direction);
-                }
-                else if (upQueue.peek() != null) {
-                    idle = false;
-                    target = upQueue.peek();
-                    direction = Elevators.UP;
-                    controller.sendCommand("m " + id + " " + direction);
-                } else {
-                    idle = true;
-                }
+            // Check to see if it reached it's floor
+            if (reachedFloor(target)) {
+                stop();
+                toggleDoors();
+                if (workingQueue == Elevators.UP)
+                    upQueue.removeFirstOccurrence(target);
+                if (workingQueue == Elevators.DOWN)
+                    downQueue.removeFirstOccurrence(target);
             }
 
+            // If we have no target, we want a new one.
+            target = getNextDestination();
+            if (target != prevTarget && target != -1) {
+                idle = false;
+                goTowardsTarget(target);
+                prevTarget = target;
+            } else if (target == -1) {
+                idle = true;
+            }
+        }
+    }
+
+    private int getNextDestination() {
+        // We're going up
+        if (direction == Elevators.UP) {
+            for (Integer integer : upQueue) {
+                if (integer > floor) {
+                    workingQueue = Elevators.UP;
+                    return integer;
+                }
+            }
+            if (downQueue.peek() != null) {
+                workingQueue = Elevators.DOWN;
+                return downQueue.peek();
+            }
+        } else {
+            // We're going down
+            for (Integer integer : downQueue) {
+                if (integer < floor) {
+                    workingQueue = Elevators.DOWN;
+                    return integer;
+                }
+            }
+            if (upQueue.peek() != null) {
+                workingQueue = Elevators.UP;
+                return upQueue.peek();
+            }
+        }
+        // We have no target, pls give
+        return -1;
+    }
+
+    private void goTowardsTarget(int target) {
+        if (floor - (target) > 0) {
+            direction = Elevators.DOWN;
+            controller.sendCommand("m " + id + " -1");
+        } else {
+            direction = Elevators.UP;
+            controller.sendCommand("m " + id + " 1");
         }
     }
 

@@ -16,7 +16,7 @@ public class ElevatorController implements Runnable {
     public ElevatorController() {
     }
 
-    void updateElevatorPos(int elevatorID, double pos) {
+    void updateElevatorPos(int elevatorID, int pos) {
         elevatorStates[elevatorID-1].setFloor(pos);
     }
 
@@ -28,7 +28,7 @@ public class ElevatorController implements Runnable {
 
     private void initiateStates() {
         for (int i = 0; i < elevatorStates.length; i++) {
-            elevatorStates[i] = new ElevatorState(0, 0, i+1, this);
+            elevatorStates[i] = new ElevatorState(1, 0, i+1, this);
             new Thread(elevatorStates[i]).start();
         }
 
@@ -82,7 +82,9 @@ public class ElevatorController implements Runnable {
         // TODO ...
         elevatorStates[elevatorID-1].addRequest(destination);
         for (ElevatorState e : elevatorStates) {
+            System.out.println(e);
             e.printMyQueues();
+            System.out.println();
         }
     }
 
@@ -97,18 +99,24 @@ public class ElevatorController implements Runnable {
         int shortestID = 0;
 
         for (ElevatorState e : elevatorStates) {
-            System.out.println("WEEE");
             double dist = e.calculateDistance(destination, direction);
             if (dist < shortestDistance) {
                 shortestDistance = dist;
                 shortestID = e.getId();
             }
         }
+        // Multiplication with 100 due to floor representation, read more on the instance variable in class
         elevatorStates[shortestID-1].addRequest(destination, direction);
 
         // For debug
         for (ElevatorState e : elevatorStates) {
+            System.out.println(e);
             e.printMyQueues();
+            System.out.println();
         }
+    }
+
+    public void stop(int elevatorID) {
+        elevatorStates[elevatorID-1].stop();
     }
 }
