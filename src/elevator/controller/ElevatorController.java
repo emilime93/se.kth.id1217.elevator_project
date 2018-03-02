@@ -73,21 +73,31 @@ public class ElevatorController implements Runnable {
         new Thread(new Listener(this)).start();
     }
 
+    /**
+     * When a button is pressed inside a elevator.
+     * @param elevatorID Which elevator pressed the button
+     * @param destination Which floor the elevator wishes to go to
+     */
     void moveElevator(int elevatorID, int destination) {
         // TODO ...
-        elevatorStates[elevatorID-1].addRequest(destination,);
+        elevatorStates[elevatorID-1].addRequest(destination);
         for (ElevatorState e : elevatorStates) {
             e.printMyQueues();
         }
     }
 
 
-    // The great algorithm
+    /**
+     * The great algorithm for deciding which elevator will server which request.
+     * @param destination The destination floor
+     * @param direction Which direction caller in mind wants to travel in
+     */
     void moveToFloor(int destination, int direction) {
         double shortestDistance = Double.MAX_VALUE;
         int shortestID = 0;
 
         for (ElevatorState e : elevatorStates) {
+            System.out.println("WEEE");
             double dist = e.calculateDistance(destination, direction);
             if (dist < shortestDistance) {
                 shortestDistance = dist;
