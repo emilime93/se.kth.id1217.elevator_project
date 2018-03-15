@@ -5,7 +5,6 @@ import elevator.Elevators;
 import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
-import java.net.UnknownHostException;
 
 public class ElevatorController implements Runnable {
 
@@ -28,7 +27,7 @@ public class ElevatorController implements Runnable {
 
     private void initiateStates() {
         for (int i = 0; i < elevatorStates.length; i++) {
-            elevatorStates[i] = new ElevatorState(1, 0, i+1, this);
+            elevatorStates[i] = new ElevatorState( 0, i+1, this);
             new Thread(elevatorStates[i]).start();
         }
 
@@ -58,7 +57,9 @@ public class ElevatorController implements Runnable {
                 InetAddress inetAddress = InetAddress.getByName("localhost");
                 socket = new Socket(inetAddress, Elevators.defaultPort);
             } catch (IOException e) {
+                e.printStackTrace();
             } catch (InterruptedException e) {
+                e.printStackTrace();
             }
         } while (socket == null);
         System.out.println("socket was connected");
@@ -79,7 +80,6 @@ public class ElevatorController implements Runnable {
      * @param destination Which floor the elevator wishes to go to
      */
     void moveElevator(int elevatorID, int destination) {
-        // TODO ...
         elevatorStates[elevatorID-1].addRequest(destination);
         for (ElevatorState e : elevatorStates) {
             System.out.println(e);
@@ -95,18 +95,22 @@ public class ElevatorController implements Runnable {
      * @param direction Which direction caller in mind wants to travel in
      */
     void moveToFloor(int destination, int direction) {
-        double shortestDistance = Double.MAX_VALUE;
-        int shortestID = 0;
+        int bestRank = 10000;
+        int bestID = 0;
 
         for (ElevatorState e : elevatorStates) {
-            double dist = e.calculateDistance(destination, direction);
-            if (dist < shortestDistance) {
-                shortestDistance = dist;
-                shortestID = e.getId();
+            int rank = e.calcStopsBeforeService(destination, direction);
+            if (e.isIdle()) {
+                bestID = e.getId();
+                break;
+            }
+            if (rank < bestRank) {
+                bestRank = rank;
+                bestID = e.getId();
             }
         }
-        // Multiplication with 100 due to floor representation, read more on the instance variable in class
-        elevatorStates[shortestID-1].addRequest(destination, direction);
+
+        elevatorStates[bestID-1].addRequest(destination, direction);
 
         // For debug
         for (ElevatorState e : elevatorStates) {

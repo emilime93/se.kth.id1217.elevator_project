@@ -10,9 +10,9 @@ import java.util.Arrays;
 
 class Listener implements Runnable {
 
-    ElevatorController controller;
+    private ElevatorController controller;
 
-    public Listener(ElevatorController controller) {
+    Listener(ElevatorController controller) {
         this.controller = controller;
     }
 
@@ -50,11 +50,11 @@ class Listener implements Runnable {
                     case 'p':
                         int destination;
                         elevatorID = Integer.parseInt(command[1]);
-                        destination = Integer.parseInt(command[2]) * 100;
+                        destination = Integer.parseInt(command[2]);
                         if (destination == Elevators.SPECIAL_FOR_STOP)
                             controller.stop(elevatorID);
                         else
-                            controller.moveElevator(elevatorID, destination);
+                            controller.moveElevator(elevatorID, destination*100);
                         break;
                     default:
                         System.out.println("default switch clause, something is wrong:\n" + Arrays.toString(command));
