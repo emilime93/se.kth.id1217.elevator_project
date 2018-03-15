@@ -57,9 +57,9 @@ public class ElevatorController implements Runnable {
                 InetAddress inetAddress = InetAddress.getByName("localhost");
                 socket = new Socket(inetAddress, Elevators.defaultPort);
             } catch (IOException e) {
-                e.printStackTrace();
+//                e.printStackTrace();
             } catch (InterruptedException e) {
-                e.printStackTrace();
+//                e.printStackTrace();
             }
         } while (socket == null);
         System.out.println("socket was connected");
@@ -95,20 +95,23 @@ public class ElevatorController implements Runnable {
      * @param direction Which direction caller in mind wants to travel in
      */
     void moveToFloor(int destination, int direction) {
-        int bestRank = 10000;
+        int lowestCost = 10000;
         int bestID = 0;
 
         for (ElevatorState e : elevatorStates) {
-            int rank = e.calcStopsBeforeService(destination, direction);
-            if (e.isIdle()) {
-                bestID = e.getId();
-                break;
-            }
-            if (rank < bestRank) {
-                bestRank = rank;
+            int cost = e.calcStopsBeforeService(destination, direction);
+//            if (e.isIdle()) {
+//                bestID = e.getId();
+//                break;
+//            }
+            System.out.printf("Elevator %d has cost %d\n", e.getId(), cost);
+            if (cost < lowestCost) {
+                lowestCost = cost;
                 bestID = e.getId();
             }
         }
+
+        System.out.printf("===> ELEVATOR #%d got the job!\n", bestID);
 
         elevatorStates[bestID-1].addRequest(destination, direction);
 

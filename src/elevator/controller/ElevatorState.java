@@ -112,15 +112,18 @@ public class ElevatorState implements Runnable {
 
     int calcStopsBeforeService(int targetFloor, int requestedDirection) {
         // We are counting # of stops. Not distance.
+        //TODO fix idle issue
         int sum = 0;
 
-        // If we're there...
-        if (reachedFloor(targetFloor))
-            return 0;
+        // If we're there or not doing anything
+        if (idle || reachedFloor(targetFloor))
+            return sum;
+        sum++;
 
         // Optimization if we are already on our way there, in the right direction
         if (upQueue.contains(targetFloor) || downQueue.contains(targetFloor))
-            return 0;
+            return sum;
+        sum++;
 
         // If we're going up
         if (this.direction == Elevators.UP) {
@@ -128,13 +131,13 @@ public class ElevatorState implements Runnable {
             if (requestedDirection == Elevators.UP) {
 
                 // If they are above us, and wants to go in the same direction
-                if (targetFloor - floor > 0) {
+                if (targetFloor - this.floor > 0) {
                     for (Integer floor : upQueue) {
                         if (floor > targetFloor)
                             break;
                         sum++;
                     }
-                    return 0;
+                    return sum;
                 } else { // They are below us and wants to go with us
                     // Calc the cost for going up
                     sum += !upQueue.isEmpty() ? upQueue.size() : 0;
@@ -151,7 +154,7 @@ public class ElevatorState implements Runnable {
 
             if (requestedDirection == Elevators.DOWN) {
                 // They are below us, and wants to go in the same direction
-                if (floor - targetFloor > 0) {
+                if (this.floor - targetFloor > 0) {
                     for (Integer floor : downQueue) {
                         if (floor < targetFloor)
                             break;
@@ -255,6 +258,8 @@ public class ElevatorState implements Runnable {
                 e.printStackTrace();
             }
 
+            updateDisplay();
+
             // Check to see if it reached it's floor
             if (reachedFloor(target)) {
                 stop();
@@ -274,6 +279,14 @@ public class ElevatorState implements Runnable {
                 idle = true;
             }
         }
+    }
+
+    /**
+     * Updates display to show the current level.
+     */
+    private void updateDisplay() {
+        int floor = (int) (this.floor/100.0 + 0.5);
+        controller.sendCommand("s " + id + " " + floor);
     }
 
     private int getNextDestination() {
