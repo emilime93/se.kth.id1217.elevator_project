@@ -100,10 +100,6 @@ public class ElevatorController implements Runnable {
 
         for (ElevatorState e : elevatorStates) {
             int cost = e.calcStopsBeforeService(destination, direction);
-//            if (e.isIdle()) {
-//                bestID = e.getId();
-//                break;
-//            }
             System.out.printf("Elevator %d has cost %d\n", e.getId(), cost);
             if (cost < lowestCost) {
                 lowestCost = cost;

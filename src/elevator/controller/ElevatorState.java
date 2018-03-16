@@ -112,7 +112,6 @@ public class ElevatorState implements Runnable {
 
     int calcStopsBeforeService(int targetFloor, int requestedDirection) {
         // We are counting # of stops. Not distance.
-        //TODO fix idle issue
         int sum = 0;
 
         // If we're there or not doing anything
