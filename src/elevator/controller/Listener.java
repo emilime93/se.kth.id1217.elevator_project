@@ -8,6 +8,17 @@ import java.io.InputStreamReader;
 import java.net.Socket;
 import java.util.Arrays;
 
+/**
+ * Title:        Elevator Controller Listener
+ * Description:  The object that continuously listens for data from
+ *               the TCP socket on port 4711 (default) and forwards it.
+ * Company:      KTH
+ * Course:       ID1217 Concurrent Programming.
+ *
+ * @authors Emil Lindholm Brandt & Sabina Hauzenberger
+ * @version 1.0
+ */
+
 class Listener implements Runnable {
 
     private ElevatorController controller;
@@ -17,6 +28,10 @@ class Listener implements Runnable {
     }
 
 
+    /**
+     * The listener threads main loop, listening for any data from the TCP socket
+     * and forwards any data to the correct controller method. This does not terminate.
+     */
     @Override
     public void run() {
         Socket socket = controller.getSocket();

@@ -1,8 +1,20 @@
 package elevator.controller;
 
 import elevator.Elevators;
-
 import java.util.LinkedList;
+
+/**
+ * Title:        Elevator Controller State
+ * Description:  This object encapsulates a elevator state, and has helper
+ *               methods to compute cost/rank for taking a request and more.
+ *               It also makes asynchronous (but synchronized) decisions on
+ *               what to do next.
+ * Company:      KTH
+ * Course:       ID1217 Concurrent Programming.
+ *
+ * @authors Emil Lindholm Brandt & Sabina Hauzenberger
+ * @version 1.0
+ */
 
 public class ElevatorState implements Runnable {
 
@@ -10,15 +22,16 @@ public class ElevatorState implements Runnable {
     private int floor;
     /* 1 = UP | -1 = DOWN */
     private int direction = Elevators.UP;
+    /* Indicates whether the elevator is serving a request or not */
+    private boolean idle = true;
     /* My ID, ranges from 1 to N */
-    private int id;
+    final private int id;
 
     /* The up & down queues containing requests for each direction. */
     private LinkedList<Integer> upQueue;
     private LinkedList<Integer> downQueue;
 
     private ElevatorController controller;
-    private boolean idle = true;
 
     /**
      * Creates a state of a elevator, containing its current floor, direction and a unique id.
@@ -72,7 +85,7 @@ public class ElevatorState implements Runnable {
      * @param destination The floor where the button was pressed
      * @param direction The direction they want to travel in
      */
-    void addRequest(int destination, int direction) {
+    synchronized void addRequest(int destination, int direction) {
         if (direction == Elevators.UP)
             addUpRequest(destination);
         else
@@ -83,7 +96,7 @@ public class ElevatorState implements Runnable {
      * Used for when someone inside the elevator pushes a button
      * @param destination The destination floor.
      */
-    void addRequest(int destination) {
+    synchronized void addRequest(int destination) {
         System.out.println("Adding request on elevator" + id + ", destination = " + destination);
         if (this.direction == Elevators.UP) {
             if ((destination - floor) > 0) {
@@ -106,16 +119,24 @@ public class ElevatorState implements Runnable {
         }
     }
 
-    boolean isIdle() {
-        return idle;
-    }
-
-    int calcStopsBeforeService(int targetFloor, int requestedDirection) {
+    /**
+     * Calculates the cost/rank for the elevator to potentially service a request.
+     * Lower cost/rank is better.
+     * @param targetFloor The requested floor.
+     * @param requestedDirection The requested direction.
+     * @return The cost/rank.
+     */
+    synchronized int calcStopsBeforeService(int targetFloor, int requestedDirection) {
         // We are counting # of stops. Not distance.
         int sum = 0;
 
-        // If we're there or not doing anything
-        if (idle || reachedFloor(targetFloor))
+        // If we're there
+        if (reachedFloor(targetFloor))
+            return sum;
+        sum++;
+
+        // If we're not doing anything
+        if (idle)
             return sum;
         sum++;
 
@@ -171,19 +192,23 @@ public class ElevatorState implements Runnable {
                 sum += !downQueue.isEmpty() ? downQueue.size() : 0;
             }
         }
-
         System.out.printf("==== DEBUG ===\nElevator #%d calculated the cost for going to %d to: %d\n", id, targetFloor, sum);
-
         return sum;
     }
 
-    void stop() {
+    /**
+     * Stops the elevator.
+     */
+    synchronized void stop() {
         System.out.println(this);
         printMyQueues();
         System.out.println();
         controller.sendCommand("m " + id + " 0");
     }
 
+    /**
+     * Toggles the doors on the elevator with a thread delay as well.
+     */
     private void toggleDoors() {
         controller.sendCommand("d " + id + " 1");
         try {
@@ -199,24 +224,12 @@ public class ElevatorState implements Runnable {
         }
     }
 
-    int getId() {
+    /**
+     * Get the ID of the elevator.
+     * @return The ID.
+     */
+    synchronized int getId() {
         return id;
-    }
-
-    int getDirection() {
-        return direction;
-    }
-
-    void setDirection(int direction) {
-        this.direction = direction;
-    }
-
-    double getFloor() {
-        return floor;
-    }
-
-    void setFloor(int floor) {
-        this.floor = floor;
     }
 
     @Override
@@ -224,7 +237,10 @@ public class ElevatorState implements Runnable {
         return String.format("Elevator #%d (idle:%b), at floor %d, moving %d", id, idle, floor, direction);
     }
 
-    public void printMyQueues() {
+    /**
+     * Prints the queues. For debug.
+     */
+    synchronized void printMyQueues() {
         System.out.println("---> ELEVATOR #"+id);
         System.out.printf("Upqueue:\n[");
         for (Integer i : upQueue) {
@@ -237,6 +253,13 @@ public class ElevatorState implements Runnable {
         System.out.printf("]\n");
     }
 
+    /**
+     * Tests the elevator to see if it has reached a floor.
+     * Uses a arbitrary offset/error margin to determine it due to
+     * the main application design.
+     * @param target The floor to test.
+     * @return True if we reached the floor, false otherwise.
+     */
     private boolean reachedFloor(int target) {
         if (target == -1) return false;
         // Test value, may be subject to change
@@ -245,6 +268,17 @@ public class ElevatorState implements Runnable {
         return false;
     }
 
+    /**
+     * Changes the floor of the elevator.
+     * @param floor The new floor state.
+     */
+    public void setFloor(int floor) {
+        this.floor = floor;
+    }
+
+    /**
+     * The main loop of the thread which is used to make decisions on what to do next.
+     */
     @Override
     public void run() {
         // These initialize to different numbers to make if statement work and not spam the elevator with the same cmd
@@ -263,19 +297,25 @@ public class ElevatorState implements Runnable {
             if (reachedFloor(target)) {
                 stop();
                 toggleDoors();
-                upQueue.removeFirstOccurrence(target);
-                downQueue.removeFirstOccurrence(target);
+                synchronized (this) {
+                    upQueue.removeFirstOccurrence(target);
+                    downQueue.removeFirstOccurrence(target);
+                }
             }
 
             // If we have no target, we want a new one.
             target = getNextDestination();
             if (target != prevTarget && target != -1) {
                 System.out.printf("Elevator #%d got destination %d.\n", id, target);
-                idle = false;
+                synchronized (this) {
+                    idle = false;
+                }
                 goTowardsTarget(target);
                 prevTarget = target;
             } else if (target == -1) {
-                idle = true;
+                synchronized (this) {
+                    idle = true;
+                }
             }
         }
     }
@@ -283,12 +323,17 @@ public class ElevatorState implements Runnable {
     /**
      * Updates display to show the current level.
      */
-    private void updateDisplay() {
+    synchronized private void updateDisplay() {
         int floor = (int) (this.floor/100.0 + 0.5);
         controller.sendCommand("s " + id + " " + floor);
     }
 
-    private int getNextDestination() {
+    /**
+     * This method returns the next destination for the elevator. It takes its state and queues
+     * into consideration to make effective decisions leading to a effective strategy.
+     * @return The next destination floor.
+     */
+    synchronized private int getNextDestination() {
         /**
          * Algorithm explanation:
          * - 1st consideration:
@@ -327,7 +372,12 @@ public class ElevatorState implements Runnable {
         return -1;
     }
 
-    private void goTowardsTarget(int target) {
+    /**
+     * Calculates which direction the elevator needs to go towards
+     * in order to go towards the target. Also sends a command to go there.
+     * @param target The target floor.
+     */
+    synchronized private void goTowardsTarget(int target) {
         if (floor - target > 0) {
             direction = Elevators.DOWN;
             controller.sendCommand("m " + id + " -1");
